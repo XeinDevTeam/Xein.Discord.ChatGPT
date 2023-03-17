@@ -6,6 +6,8 @@ using OpenAI.GPT3.Managers;
 using OpenAI.GPT3.ObjectModels;
 using OpenAI.GPT3.ObjectModels.RequestModels;
 
+using System.Text.RegularExpressions;
+
 using TwitchLib.Client;
 using TwitchLib.Client.Events;
 using TwitchLib.Client.Models;
@@ -20,7 +22,7 @@ internal class Config
     public string GoogleServiceAccountPath { get; init; } = "yourKeyFile.json";
 }
 
-internal class Program
+public partial class Program
 {
     private static Config conf;
 
@@ -34,6 +36,8 @@ internal class Program
     private async Task Async(string[] args)
     {
         Console.Log("Hello World");
+
+        Console.Warn($"Current Path: {Directory.GetCurrentDirectory()}");
 
         if (!File.Exists("config.json"))
             await File.WriteAllTextAsync("config.json", new Config().GetJson(true));
@@ -64,25 +68,27 @@ internal class Program
          * [GoogleTTS] cmn-TW-Wavenet-B (Male); Language codes: cmn-TW
          * [GoogleTTS] cmn-TW-Wavenet-C (Male); Language codes: cmn-TW
          */
-
         Console.Log($"Init Google TTS");
-        File.Delete("output.mp3");
+        if (false)
+        {
+            File.Delete("output.mp3");
 
-        var ttsClient = TextToSpeechClient.Create();
+            var ttsClient = TextToSpeechClient.Create();
 
-        var speechInput = new SynthesisInput { Text = "你好我是 Google Text-To-Speech，这是一个我测试的声音。", };
-        var speechSelection = new VoiceSelectionParams { LanguageCode = "cmn-TW", SsmlGender = SsmlVoiceGender.Female, };
-        var audioConfig = new AudioConfig { AudioEncoding = AudioEncoding.Mp3, SampleRateHertz = 48000, };
-        var speechTest = ttsClient.SynthesizeSpeech(speechInput, speechSelection, audioConfig);
+            var speechInput = new SynthesisInput { Text = "你好我是 Google Text-To-Speech，这是一个我测试的声音。", };
+            var speechSelection = new VoiceSelectionParams { LanguageCode = "cmn-TW", SsmlGender = SsmlVoiceGender.Female, };
+            var audioConfig = new AudioConfig { AudioEncoding = AudioEncoding.Mp3, SampleRateHertz = 48000, };
+            var speechTest = ttsClient.SynthesizeSpeech(speechInput, speechSelection, audioConfig);
 
-        if (speechTest is not null)
-            using (var output = File.Create("output.mp3"))
-                speechTest.AudioContent.WriteTo(output);
+            if (speechTest is not null)
+                using (var output = File.Create("output.mp3"))
+                    speechTest.AudioContent.WriteTo(output);
 
-        if (!File.Exists("output.mp3"))
-            Console.Error($"[GoogleTTS] Failed to create a demo output.mp3");
+            if (!File.Exists("output.mp3"))
+                Console.Error($"[GoogleTTS] Failed to create a demo output.mp3");
+        }
 
-        Console.Log($"Init Twitch");
+        Console.Log($"Init Twitch (Username: {conf.TwitchUsername})");
         twitchCredentials = new(conf.TwitchUsername, conf.TwitchOAuthToken);
         twitchClient = new();
 
@@ -243,6 +249,10 @@ internal class Program
     }
 
     #region Twitch Events
+    [GeneratedRegex("[\u4E00-\u9FFF]+")]
+    private static partial Regex RegexCJK();
+    private static readonly Regex regexCJK = RegexCJK();
+
     private async void TwitchClient_OnMessageReceived(object? sender, OnMessageReceivedArgs e)
     {
         // return if common bots username, commands prefix
@@ -254,6 +264,13 @@ internal class Program
         Console.Log($"[Twitch] [{e.ChatMessage.UserType} '{e.ChatMessage.Username}'] says in '{e.ChatMessage.Channel}': {e.ChatMessage.Message}");
 
         Console.Debug($"[Twitch] [Chat Debug '{e.ChatMessage.Id}'] IsParentNull: {e.ChatMessage.ChatReply is null} | ParentId: {e.ChatMessage.ChatReply?.ParentMsgId}, ParentMsg: {e.ChatMessage.ChatReply?.ParentMsgBody}");
+
+        var realMessage = e.ChatMessage.Message;
+
+        foreach (var emote in e.ChatMessage.EmoteSet.Emotes)
+            realMessage = realMessage.Replace(emote.Name, "");
+
+        Console.Debug($"[Twitch] realMessage: {realMessage}");
 
         // check if replies requires me to translate?
         if (e.ChatMessage.ChatReply is not null)
@@ -271,10 +288,10 @@ internal class Program
             // is Translate exists
             var isTranslate = split.ToList().FindAll(s => string.Compare(s, "translate", StringComparison.InvariantCultureIgnoreCase) == 0).Any();
 
-            Console.Debug($"[Twitch] [Reply Checks] IsMention: {isMention}, IsTranslate: {isTranslate}\nMsg: {toTranslate}\nSplit: {string.Join(" | ", split)}\nExecute: translate to {split[2]}: {toTranslate}");
-
             if (split.Length >= 3 && isMention && isTranslate)
             {
+                Console.Debug($"[Twitch] [Reply Checks] IsMention: {isMention}, IsTranslate: {isTranslate}\nMsg: {toTranslate}\nSplit: {string.Join(" | ", split)}\nExecute: translate to {(split.Length == 3 ? split[2] : split[3])}: {toTranslate}");
+
                 var result = await openAI.ChatCompletion.CreateCompletion(new()
                 {
                     Messages = new List<OpenAI.GPT3.ObjectModels.RequestModels.ChatMessage>
@@ -284,18 +301,36 @@ internal class Program
                     Model = Models.ChatGpt3_5Turbo,
                 });
 
-
                 if (result.Successful)
                 {
                     var translated = result.Choices.First().Message.Content[1..];
-                    twitchClient.SendMessage(e.ChatMessage.Channel, translated);
+                    twitchClient.SendReply(e.ChatMessage.Channel, reply.ParentMsgId, $"{reply.ParentUserLogin} says: {translated}");
                 }
                 else
-                    twitchClient.SendMessage(e.ChatMessage.Channel, $"Failed To Translate, Error: {result.Error.Code}, {result.Error.Message}");
+                    twitchClient.SendReply(e.ChatMessage.Channel, reply.ParentMsgId, $"Failed To Translate, Error: {result.Error.Code}, {result.Error.Message}");
             }
         }
 
-        var realMessage = string.Empty;
+        // or manually? (Regex are Except CJK Ranged)
+        if (realMessage.Length > 1 && !regexCJK.IsMatch(realMessage))
+        {
+            var result = await openAI.ChatCompletion.CreateCompletion(new()
+            {
+                Messages = new List<OpenAI.GPT3.ObjectModels.RequestModels.ChatMessage>
+                        {
+                            OpenAI.GPT3.ObjectModels.RequestModels.ChatMessage.FromUser($"translate to Traditional Chinese: {realMessage}"),
+                        },
+                Model = Models.ChatGpt3_5Turbo,
+            });
+
+            if (result.Successful)
+            {
+                var translated = result.Choices.First().Message.Content[1..];
+                twitchClient.SendReply(e.ChatMessage.Channel, e.ChatMessage.Id, $"{e.ChatMessage.Username} says: {translated}");
+            }
+            else
+                twitchClient.SendReply(e.ChatMessage.Channel, e.ChatMessage.Id, $"Failed To Translate, Error: {result.Error.Code}, {result.Error.Message}");
+        }
 
         // after check with Chinese '操你媽垃圾機器人' which means 'fuck you rubbish bot' does not trigger flags, need to be trained or machine learning it
         var moderation = await openAI.CreateModeration(new CreateModerationRequest() { Input = e.ChatMessage.Message, });
