@@ -29,7 +29,7 @@ public class ConsoleItem
         }
 
         System.Console.WriteLine(msg);
-        
+
         System.Console.ForegroundColor = ConsoleColor.White;
     }
 }
