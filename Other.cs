@@ -38,5 +38,19 @@ public static class Extension
         yield return result.Categories.Violencegraphic;
     }
 
-    public static string GetFormat(this DateTime time) => $"[{DateTime.Now.ToShortDateString()} {DateTime.Now.ToShortTimeString()}]";
+    public static string GetFormat(this DateTime time) => $"[{time.ToShortDateString()} {time.ToShortTimeString()}]";
+
+    public static bool IsEmpty(this string s) => string.IsNullOrWhiteSpace(s) || string.IsNullOrEmpty(s);
+
+    public static bool IsNumeric(this string str)
+    {
+        if (str.IsEmpty())
+            return false;
+
+        foreach (var c in str)
+            if (!char.IsNumber(c))
+                return false;
+
+        return true;
+    }
 }
