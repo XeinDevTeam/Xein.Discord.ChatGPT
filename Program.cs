@@ -10,13 +10,16 @@ using TwitchLib.Client;
 using TwitchLib.Client.Events;
 using TwitchLib.Client.Models;
 
+#pragma warning disable CS8618
+#pragma warning disable CS8602
+
 namespace Xein.Discord.ChatGPT;
 
 internal class Config
 {
-    public string ChatGPTApiKey { get; init; } = "Enter Your API Key From https://platform.openai.com/account/api-keys";
-    public string TwitchUsername { get; init; } = "Enter Your Twitch Username";
-    public string TwitchOAuthToken { get; init; } = "Enter Your OAuth Token From https://twitchapps.com/tmi/";
+    public string ChatGPTApiKey            { get; init; } = "Enter Your API Key From https://platform.openai.com/account/api-keys";
+    public string TwitchUsername           { get; init; } = "Enter Your Twitch Username";
+    public string TwitchOAuthToken         { get; init; } = "Enter Your OAuth Token From https://twitchapps.com/tmi/";
     public string GoogleServiceAccountPath { get; init; } = "yourKeyFile.json";
 }
 
@@ -42,14 +45,14 @@ internal class IgnoredUsers
 
 public partial class Program
 {
-    private static Config conf;
+    private static Config       conf;
     private static IgnoredUsers ignored;
 
     private static OpenAIService openAI;
 
-    private static TwitchClient twitchClient;
+    private static TwitchClient          twitchClient;
     private static ConnectionCredentials twitchCredentials;
-    private static string twitchRealUsername;
+    private static string                twitchRealUsername;
 
     public static void Main(string[] args) => new Program().Async(args).GetAwaiter().GetResult();
 
@@ -93,9 +96,9 @@ public partial class Program
          * [GoogleTTS] cmn-TW-Wavenet-B (Male); Language codes: cmn-TW
          * [GoogleTTS] cmn-TW-Wavenet-C (Male); Language codes: cmn-TW
          */
-        Console.Log($"Init Google TTS");
         if (false)
         {
+            Console.Log($"Init Google TTS");
             File.Delete("output.mp3");
 
             var ttsClient = TextToSpeechClient.Create();

@@ -4,6 +4,9 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Unicode;
 
+#pragma warning disable CS8618
+#pragma warning disable CS8603
+
 namespace Xein.Discord.ChatGPT;
 
 public static class Extension
