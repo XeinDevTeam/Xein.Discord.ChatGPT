@@ -4,6 +4,8 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Unicode;
 
+using TwitchLib.Client.Models;
+
 #pragma warning disable CS8618
 #pragma warning disable CS8603
 
@@ -16,8 +18,8 @@ public static class Extension
     private static JsonSerializerOptions JsonOptionsMinify() { return jsoMin ??= new() { Encoder = JavaScriptEncoder.Create(UnicodeRanges.All), }; }
     private static JsonSerializerOptions DefaultJsonOptions() { return jso ??= new() { WriteIndented = true, Encoder = JavaScriptEncoder.Create(UnicodeRanges.All), }; }
 
-    public static string GetJson<T>(this T type, bool beautify = false) => JsonSerializer.Serialize(type, beautify ? DefaultJsonOptions() : JsonOptionsMinify());
-    public static T FromJson<T>(this string json) => JsonSerializer.Deserialize<T>(json);
+    public static string GetJson<T>(this  T      type, bool beautify = false) => JsonSerializer.Serialize(type, beautify ? DefaultJsonOptions() : JsonOptionsMinify());
+    public static T      FromJson<T>(this string json, bool isFile   = false) => JsonSerializer.Deserialize<T>(isFile ? File.ReadAllText(json) : json);
 
     public static IEnumerable<float> GetScores(this Result result)
     {
@@ -40,6 +42,10 @@ public static class Extension
         yield return result.Categories.Violence;
         yield return result.Categories.Violencegraphic;
     }
+
+    public static bool IsAbleToUse(this ChatMessage chatMsg) => chatMsg.IsModerator || chatMsg.IsBroadcaster || string.Compare(chatMsg.Username, "xein0708", StringComparison.InvariantCultureIgnoreCase) == 0;
+    
+    public static string Format(this Exception e) => $"Exception: {e} (Inner: {e.InnerException})\n{e.Message}\nStacktrace:\n{e.StackTrace}";
 
     public static string GetFormat(this DateTime time) => $"[{time.ToShortDateString()} {time.ToShortTimeString()}]";
 
