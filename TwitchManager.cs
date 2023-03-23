@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using TwitchLib.Client;
 using TwitchLib.Client.Events;
 using TwitchLib.Client.Models;
+using TwitchLib.Communication.Events;
 
 namespace Xein.Discord.ChatGPT;
 
@@ -19,13 +20,61 @@ public static partial class TwitchManager
         twitchClient      = new();
 
         twitchClient.Initialize(twitchCredentials, ConfigManager.SystemConfig.AutoJoinedChannels);
+        
+        twitchClient.OnJoinedChannel    += TwitchClient_OnJoinedChannel;
+        twitchClient.OnMessageReceived  += TwitchClient_OnMessageReceived;
 
-        twitchClient.OnLog             += TwitchClient_OnLog;
-        twitchClient.OnConnected       += TwitchClient_OnConnected;
-        twitchClient.OnMessageReceived += TwitchClient_OnMessageReceived;
+        twitchClient.OnSendReceiveData  += TwitchClient_OnSendReceiveData;
+
+        twitchClient.OnUnaccountedFor   += TwitchClient_OnUnaccountedFor;
+        twitchClient.OnRateLimit        += TwitchClient_OnRateLimit;
+        twitchClient.OnError            += TwitchClient_OnError;
+        twitchClient.OnMessageThrottled += TwitchClient_OnMessageThrottled;
 
         Console.Log($"Connecting Twitch");
         twitchClient.Connect();
+    }
+
+    private static void TwitchClient_OnSendReceiveData(object? sender, OnSendReceiveDataArgs e)
+    {
+        Console.Debug($"[Twitch] [{e.Direction} Data] {e.Data}");
+
+        var args = e.Data.Split(' ');
+        switch (args[0])
+        {
+            case ":tmi.twitch.tv":
+                {
+                    switch (args[1])
+                    {
+                        case "001":
+                            twitchRealUsername = args[2];
+                            JoinChannel(twitchRealUsername);
+                            SendMessage(twitchRealUsername, "Hi, I'm Online Now");
+                            break;
+                    }
+                }
+                break;
+        }
+    }
+
+    private static void TwitchClient_OnUnaccountedFor(object? sender, OnUnaccountedForArgs e)
+    {
+        Console.Error($"[Twitch] [OnUnAccountedFor] {e.BotUsername} - {e.Channel}\nRAW: {e.RawIRC}\nLocation: {e.Location}\n");
+    }
+
+    private static void TwitchClient_OnMessageThrottled(object? sender, OnMessageThrottledEventArgs e)
+    {
+        Console.Error($"[Twitch] Throttled: {e.Message}\nPeroid: {e.Period} | Allowed In Peroid: {e.AllowedInPeriod}\nSent Cound:{e.SentMessageCount}");
+    }
+
+    private static void TwitchClient_OnError(object? sender, OnErrorEventArgs e)
+    {
+        Console.Error($"[Twitch] Error: {e.Exception.Format()}");
+    }
+
+    private static void TwitchClient_OnJoinedChannel(object? sender, OnJoinedChannelArgs e)
+    {
+        Console.Log($"[Twitch] Joined Channel: {e.Channel}");
     }
 
     public static void Shutdown()
@@ -35,11 +84,50 @@ public static partial class TwitchManager
 
     public static void JoinChannel (string channelName)                               => twitchClient.JoinChannel (channelName, true);
     public static void LeaveChannel(string channelName)                               => twitchClient.LeaveChannel(channelName);
-    public static void ReplyMessage(string channelName, string msgId, string message) => twitchClient.SendReply   (channelName, msgId, message);
-    public static void SendMessage (string channelName, string message)               => twitchClient.SendMessage (channelName, message);
-
     
+    private static DateTime lastResetTime = DateTime.Now;
+    private static int      lastSentCount;
+    private static bool CheckSelfRatelimit()
+    {
+        if ((DateTime.Now - lastResetTime).TotalSeconds < 30 && lastSentCount > 15)
+            return false;
+        else if ((DateTime.Now - lastResetTime).TotalSeconds > 30.0f)
+        {
+            lastResetTime = DateTime.Now;
+            lastSentCount = 0;
+        }
+        Console.Debug($"[SELFRATELIMIT] remaining: {15 - lastSentCount} | next reset: {(30 - (DateTime.Now - lastResetTime).TotalSeconds)}");
+        return true;
+    }
+    
+    public static void SendMessage(string channelName, string message)
+    {
+        if (!CheckSelfRatelimit())
+        {
+            Console.Warn($"[TWITCH] [SELFRATELIMIT], NOT SENDING TO: {channelName} > {message}");
+            return;
+        }
+        lastSentCount += 1;
+        twitchClient.SendMessage(channelName, message);
+    }
+
+    public static void ReplyMessage(string channelName, string msgId, string message)
+    {
+        if (!CheckSelfRatelimit())
+        {
+            Console.Warn($"[TWITCH] [SELFRATELIMIT], NOT REPLYING TO: {channelName} > {msgId} > {message}");
+            return;
+        }
+        lastSentCount += 1;
+        twitchClient.SendReply(channelName, msgId, message);
+    }
+
     #region Twitch Events
+    private static void TwitchClient_OnRateLimit(object? sender, OnRateLimitArgs e)
+    {
+        Console.Error($"[TWITCH] [RATELIMIT] Channel '{e.Channel}': {e.Message}");
+    }
+
     [GeneratedRegex("[\u4E00-\u9FFF]+")]
     private static partial Regex RegexCJK();
     private static readonly Regex regexCJK = RegexCJK();
@@ -69,15 +157,9 @@ public static partial class TwitchManager
             ConfigManager.SystemConfig.IsBannedUsername(e.ChatMessage.Username))
             return;
 
-        // remove emotes
         var realMessage = e.ChatMessage.Message;
-        foreach (var emote in e.ChatMessage.EmoteSet.Emotes)
-            realMessage = realMessage.Replace(emote.Name, "");
-
+        realMessage = realMessage.Replace("  ", " ").Replace("\t\t", " ");
         Console.Debug($"[Twitch] ['{e.ChatMessage.Id}'>'{e.ChatMessage.Username}'] realMessage: {realMessage}");
-
-        if (realMessage.IsEmpty())
-            return;
 
         var args = realMessage.Split(' ').ToArray();
         if (args[0].StartsWith('x'))
@@ -86,66 +168,52 @@ public static partial class TwitchManager
                 Commands.GetCommandHandler(args[0])(realMessage, args, e.ChatMessage);
             return;
         }
+        
+        // remove emotes
+        foreach (var emote in e.ChatMessage.EmoteSet.Emotes)
+            realMessage = realMessage.Replace(emote.Name, "");
+        // remove ignored translate
+        foreach (var replace in ConfigManager.SystemConfig.IgnoredTranslate)
+            realMessage = realMessage.Replace(replace, "");
+        
+        // Update to reparsed
+        realMessage = realMessage.Replace("  ", " ").Replace("\t\t", " ");
+        args        = realMessage.Split(' ').ToArray();
+        if (realMessage.IsEmpty())
+            return;
 
         // Don't Check Self stuff...
         if (e.ChatMessage.Username == twitchRealUsername)
             return;
-
-        // check if replies requires me to translate?
-        if (e.ChatMessage.ChatReply is not null)
-        {
-            Console.Debug($"[Twitch] [Chat Reply '{e.ChatMessage.Id}'] ParentId: {e.ChatMessage.ChatReply?.ParentMsgId}, ParentMsg: {e.ChatMessage.ChatReply?.ParentMsgBody}");
-
-            // never null in here
-            var reply = e.ChatMessage.ChatReply;
-            var toTranslate = reply.ParentMsgBody;
-            // is user calling me
-            var isMention = e.ChatMessage.Message.Contains($"@{ConfigManager.Config.TwitchUsername}");
-            // split message?
-            var split = e.ChatMessage.Message.Split(' ');
-            // is Translate exists
-            var isTranslate = split.ToList().FindAll(s => string.Compare(s, "translate", StringComparison.InvariantCultureIgnoreCase) == 0).Any();
-
-            if (split.Length >= 3 && isMention && isTranslate)
-            {
-                var language = split.Length == 3 ? split[2] : split[3];
-
-                Console.Debug($"[Twitch] [Reply Checks] IsMention: {isMention}, IsTranslate: {isTranslate}\n" +
-                    $"Msg: {toTranslate}\n" +
-                    $"Split: {string.Join(" | ", split)}\n" +
-                    $"Execute: translate to {language}: {toTranslate}");
-
-                var result = await OpenAIManager.Translate(language, toTranslate);
-                twitchClient.SendMessage(e.ChatMessage.Channel, result.successful ? $"{e.ChatMessage.Username} says/说: {result.message}" : $"Translate Failed/翻译失败: {result.message}");
-            }
-        }
+        
         // or scans first 2 string && first must be translate
-        else if (args.Length >= 2 && string.Compare(args[0], "translate", StringComparison.InvariantCultureIgnoreCase) == 0)
+        if (args.Length >= 2 && string.Compare(args[0], "translate", StringComparison.InvariantCultureIgnoreCase) == 0)
         {
-            // and second must be language? (TODO: checks lang)
+            // and second must be language? TODO: checks lang
             var language    = args[1];
             var toTranslate = realMessage[(realMessage.IndexOf(args[1], StringComparison.InvariantCultureIgnoreCase) + args[1].Length)..];
 
             if (toTranslate.IsEmpty())
             {
-                twitchClient.SendMessage(e.ChatMessage.Channel, "Nothing to translate | 沒有東西可以翻譯");
+                SendMessage(e.ChatMessage.Channel, "Nothing to translate | 沒有東西可以翻譯");
                 return;
             }
 
             var result = await OpenAIManager.Translate(language, toTranslate);
-            twitchClient.SendMessage(e.ChatMessage.Channel, result.successful ? $"{e.ChatMessage.Username} says/说: {result.message}" : $"Translate Failed/翻译失败: {result.message}");
+            SendMessage(e.ChatMessage.Channel, result.successful ? $"{e.ChatMessage.Username} says/说: {result.message}" : $"Translate Failed/翻译失败: {result.message}");
         }
-        // or automatically? (TODO: Smart Checks, Check Shit Symbols only, or pure Symbols)
+        // or automatically? TODO: Smart Checks, Check Shit Symbols only, or pure Symbols
         else if (!realMessage.IsEmpty() &&
                  !regexCJK.IsMatch(realMessage) &&
                  !realMessage.IsNumeric() &&
                  //!regexSymbols.IsMatch(realMessage)
-                 realMessage[0] != '@'
+                 realMessage[0] != '@' &&
+                 (realMessage.Length > 3 && realMessage[0] == ' ' && realMessage[1] == '@')
                  )
         //else if (false)
         {
             var result = await OpenAIManager.Translate("繁体中文", realMessage);
-            twitchClient.SendMessage(e.ChatMessage.Channel, result.successful ? $"{e.ChatMessage.Username} says/说: {result.message}" : $"Translate Failed/翻译失败: {result.message}");
+            SendMessage(e.ChatMessage.Channel, result.successful ? $"{e.ChatMessage.Username} says/说: {result.message}" : $"Translate Failed/翻译失败: {result.message}");
         }
 
         try
@@ -157,40 +225,13 @@ public static partial class TwitchManager
                          $"Categories: {string.Join(", ", result.categories)}\n" +
                          $"Level     : {string.Join(", ", result.scores)}");
 
-            if (result.flag)
-                twitchClient.SendReply(e.ChatMessage.Channel, e.ChatMessage.Id, "该讯息被ChatGPT标识为有危险成分!");
+            await File.AppendAllTextAsync("dangerous.txt", new Dangerous() { Message = e.ChatMessage.Message, Categories = result.categories.ToList(), Scores = result.scores.ToList(), }.GetJson() + Environment.NewLine);
+            //if (result.flag)
+                //ReplyMessage(e.ChatMessage.Channel, e.ChatMessage.Id, "该讯息被ChatGPT标识为有危险成分!");
         }
         catch (Exception ex)
         {
             Console.Error(ex.Format());
-        }
-    }
-
-    private static void TwitchClient_OnConnected(object? sender, OnConnectedArgs e)
-    {
-        Console.Log($"[Twitch] Connected to {e.AutoJoinChannel}");
-    }
-
-    private static void TwitchClient_OnLog(object? sender, OnLogArgs e)
-    {
-        Console.Debug($"[Twitch] {e.DateTime.GetFormat()}: {e.BotUsername} - {e.Data}");
-
-        // TODO: FIX INSIDE LIBRARY PLS
-        // first Received: can be ignored
-        var args = e.Data.Split(' ');
-        switch (args[1])
-        {
-            case ":tmi.twitch.tv":
-                {
-                    switch (args[2])
-                    {
-                        case "001":
-                            twitchRealUsername = args[3];
-                            twitchClient.JoinChannel(twitchRealUsername);
-                            break;
-                    }
-                }
-                break;
         }
     }
     #endregion

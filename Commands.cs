@@ -29,9 +29,9 @@ public static class Commands
     [Command("xautojoin")]
     private static void TwitchAutoJoin(string input, string[] args, ChatMessage chatMsg)
     {
-        if (chatMsg?.IsAbleToUse() ?? false)
+        if (!chatMsg?.IsAbleToUse() ?? false)
             return;
-        
+
         if (args.Length < 2)
         {
             if (chatMsg is not null)
@@ -41,16 +41,55 @@ public static class Commands
             return;
         }
 
+        if (ConfigManager.SystemConfig.IsInsideAutoJoinChannel(args[1]))
+        {
+            if (chatMsg is not null)
+                TwitchManager.ReplyMessage(chatMsg.Channel, chatMsg.Id, "Channel Already Joined");
+            else
+                Console.Error("Channel Already Joined");
+            return;
+        }
+
         ConfigManager.SystemConfig.AddAutoJoinChannel(args[1]);
 
         TwitchManager.JoinChannel(args[1]);
         TwitchManager.SendMessage(args[1], "Start Scanning Message, to optout message collecting(for training purpose), please type xoptout | 开始检测聊天信息，如果不想被本机器人收集聊天信息数据(训练检测使用)，请在聊天室输入 xoptout");
     }
-    
+
+    [Command("xautojoinleave")]
+    private static void TwitchAutoJoinLeave(string input, string[] args, ChatMessage chatMsg)
+    {
+        if (!chatMsg?.IsAbleToUse() ?? false)
+            return;
+
+        if (args.Length < 2)
+        {
+            if (chatMsg is not null)
+                TwitchManager.ReplyMessage(chatMsg.Channel, chatMsg.Id, "Invalid Usage: xautojoin <channelName>");
+            else
+                Console.Error("Invalid Usage: xautojoin <channelName>");
+            return;
+        }
+
+        if (!ConfigManager.SystemConfig.IsInsideAutoJoinChannel(args[1]))
+        {
+            if (chatMsg is not null)
+                TwitchManager.ReplyMessage(chatMsg.Channel, chatMsg.Id, "Channel Not AutoJoined");
+            else
+                Console.Error("Channel Not AutoJoined");
+            return;
+        }
+
+        ConfigManager.SystemConfig.RemoveAutoJoinChannel(args[1]);
+
+        TwitchManager.SendMessage(args[1], "Bot not longer auto join channel | 机器人将不会自动加入该频道");
+        TwitchManager.LeaveChannel(args[1]);
+    }
+
     [Command("xjoin")]
     private static void TwitchJoin(string input, string[] args, ChatMessage chatMsg)
     {
-        if (chatMsg?.IsAbleToUse() ?? false)
+        if (!chatMsg?.IsAbleToUse() ?? false)
             return;
         
         if (args.Length < 2)
@@ -69,7 +108,7 @@ public static class Commands
     [Command("xleave")]
     private static void TwitchLeave(string input, string[] args, ChatMessage chatMsg)
     {
-        if (chatMsg?.IsAbleToUse() ?? false)
+        if (!chatMsg?.IsAbleToUse() ?? false)
             return;
         
         if (args.Length < 2 && chatMsg is null)
@@ -80,8 +119,8 @@ public static class Commands
         
         var channelName = chatMsg is not null ? chatMsg.Channel : args[1];
 
-        TwitchManager.SendMessage(args[1], $"Leaving '{args[1]}' Chat | 正在离开 '{args[1]}' 聊天室");
-        TwitchManager.LeaveChannel(args[1]);
+        TwitchManager.SendMessage(channelName, $"Leaving '{channelName}' Chat | 正在离开 '{channelName}' 聊天室");
+        TwitchManager.LeaveChannel(channelName);
     }
 
     [Command("xoptout")]
@@ -113,7 +152,7 @@ public static class Commands
     [Command("xban")]
     private static void BanUser(string input, string[] args, ChatMessage chatMsg)
     {
-        if (chatMsg?.IsAbleToUse() ?? false)
+        if (!chatMsg?.IsAbleToUse() ?? false)
             return;
         
         if (args.Length < 2)
@@ -142,7 +181,7 @@ public static class Commands
     [Command("xunban")]
     private static void UnBanUser(string input, string[] args, ChatMessage chatMsg)
     {
-        if (chatMsg?.IsAbleToUse() ?? false)
+        if (!chatMsg?.IsAbleToUse() ?? false)
             return;
         
         if (args.Length < 2)
@@ -165,5 +204,43 @@ public static class Commands
         
         ConfigManager.SystemConfig.RemoveBanned(args[1]);
         TwitchManager.ReplyMessage(chatMsg.Channel, chatMsg.Id, $"User '{args[1]}' has been UNBANNED, Scanning Any Message Given | 用户 '{args[1]}' 已UNBANNED，将检测他任何信息");
+    }
+
+    [Command("xignore")]
+    private static void IgnoreWords(string input, string[] args, ChatMessage chatMsg)
+    {
+        if (!chatMsg?.IsAbleToUse() ?? false)
+            return;
+
+        if (args.Length < 2)
+        {
+            if (chatMsg is null)
+                Console.Error("Invalid Usage: xignore <word>");
+            else
+                TwitchManager.ReplyMessage(chatMsg.Channel, chatMsg.Id, "Invalid Usage: xignore <word> | 错误参数: xignore <词>");
+            return;
+        }
+
+        ConfigManager.SystemConfig.AddIgnoredTranslate(args[1]);
+        TwitchManager.ReplyMessage(chatMsg.Channel, chatMsg.Id, $"'{args[1]}' will be removed/replace/ignore in next scan | '{args[1]}' 将移除/替换/跳过检测");
+    }
+
+    [Command("xunignore")]
+    private static void RemoveIgnoreWords(string input, string[] args, ChatMessage chatMsg)
+    {
+        if (!chatMsg?.IsAbleToUse() ?? false)
+            return;
+
+        if (args.Length < 2)
+        {
+            if (chatMsg is null)
+                Console.Error("Invalid Usage: xunignore <word>");
+            else
+                TwitchManager.ReplyMessage(chatMsg.Channel, chatMsg.Id, "Invalid Usage: xunignore <word> | 错误参数: xignore <词>");
+            return;
+        }
+
+        ConfigManager.SystemConfig.RemoveIgnoredTranslate(args[1]);
+        TwitchManager.ReplyMessage(chatMsg.Channel, chatMsg.Id, $"'{args[1]}' will not be removed/replace/ignore in next scan | '{args[1]}' 将不移除/替换/跳过检测");
     }
 }

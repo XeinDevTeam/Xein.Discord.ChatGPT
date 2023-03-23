@@ -12,6 +12,8 @@ public class ConsoleItem
 {
     public ConsoleItem(string msg, ConsoleType type)
     {
+        File.AppendAllText("console.log", msg + Environment.NewLine);
+        
         switch (type)
         {
             case ConsoleType.Normal:
@@ -29,7 +31,6 @@ public class ConsoleItem
         }
 
         System.Console.WriteLine(msg);
-
         System.Console.ForegroundColor = ConsoleColor.White;
     }
 }
