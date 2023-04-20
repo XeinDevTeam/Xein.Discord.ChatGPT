@@ -102,7 +102,6 @@ public static class Commands
         }
 
         TwitchManager.JoinChannel(args[1]);
-        TwitchManager.SendMessage(args[1], "Start Scanning Message, to optout message collecting(for training purpose), please type xoptout | 开始检测聊天信息，如果不想被本机器人收集聊天信息数据(训练检测使用)，请在聊天室输入 xoptout");
     }
 
     [Command("xleave")]
@@ -119,7 +118,6 @@ public static class Commands
         
         var channelName = chatMsg is not null ? chatMsg.Channel : args[1];
 
-        TwitchManager.SendMessage(channelName, $"Leaving '{channelName}' Chat | 正在离开 '{channelName}' 聊天室");
         TwitchManager.LeaveChannel(channelName);
     }
 

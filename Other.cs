@@ -25,22 +25,22 @@ public static class Extension
     {
         yield return result.CategoryScores.Hate;
         yield return result.CategoryScores.HateThreatening;
-        yield return result.CategoryScores.Selfharm;
+        yield return result.CategoryScores.SelfHarm;
         yield return result.CategoryScores.Sexual;
         yield return result.CategoryScores.SexualMinors;
         yield return result.CategoryScores.Violence;
-        yield return result.CategoryScores.Violencegraphic;
+        yield return result.CategoryScores.ViolenceGraphic;
     }
 
     public static IEnumerable<bool> GetCategories(this Result result)
     {
         yield return result.Categories.Hate;
         yield return result.Categories.HateThreatening;
-        yield return result.Categories.Selfharm;
+        yield return result.Categories.SelfHarm;
         yield return result.Categories.Sexual;
-        yield return result.Categories.Sexualminors;
+        yield return result.Categories.SexualMinors;
         yield return result.Categories.Violence;
-        yield return result.Categories.Violencegraphic;
+        yield return result.Categories.ViolenceGraphic;
     }
 
     public static bool IsAbleToUse(this ChatMessage chatMsg) => chatMsg.IsModerator || chatMsg.IsBroadcaster || string.Compare(chatMsg.Username, "xein0708", StringComparison.InvariantCultureIgnoreCase) == 0;

@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.RegularExpressions;
 
 using TwitchLib.Client;
@@ -79,7 +80,7 @@ public static partial class TwitchManager
 
     public static void Shutdown()
     {
-        twitchClient.Disconnect();
+        twitchClient?.Disconnect();
     }
 
     public static void JoinChannel (string channelName)                               => twitchClient.JoinChannel (channelName, true);
@@ -128,13 +129,21 @@ public static partial class TwitchManager
         Console.Error($"[TWITCH] [RATELIMIT] Channel '{e.Channel}': {e.Message}");
     }
 
-    [GeneratedRegex("[\u4E00-\u9FFF]+")]
+    [GeneratedRegex("[\\p{IsCJKUnifiedIdeographs}]+")]
     private static partial Regex RegexCJK();
     private static readonly Regex regexCJK = RegexCJK();
+
+    [GeneratedRegex("[\\p{IsHiragana}\\p{IsKatakana}\\p{IsKatakanaPhoneticExtensions}]+")]
+    private static partial Regex RegexJapanese();
+    private static readonly Regex regexJapanese = RegexJapanese();
 
     [GeneratedRegex("[\uFF00-\uFFEF\u0000-\u0019\u0021-\u0040\u2000-\u206F\u005B-\u0060\u007B-\u007F\u2E00-\u2E7F]+")]
     private static partial Regex RegexSymbols();
     private static readonly Regex regexSymbols = RegexSymbols();
+
+    [GeneratedRegex("\\p{So}|\\p{Cs}\\p{Cs}(\\p{Cf}\\p{Cs}\\p{Cs})*")]
+    private static partial Regex RegexEmoji();
+    private static readonly Regex regexEmoji = RegexEmoji();
 
     private static async void TwitchClient_OnMessageReceived(object? sender, OnMessageReceivedArgs e)
     {
@@ -143,7 +152,7 @@ public static partial class TwitchManager
         // logging for training purpose?
         // TODO: implement MachineLearning
         if (!ConfigManager.SystemConfig.IsUserOptOut(e.ChatMessage.Username))
-            await File.AppendAllTextAsync("chatlogs.txt", new TwitchChatLogging() { MsgId = e.ChatMessage.Id, FromChannel = e.ChatMessage.Channel, SenderUsername = e.ChatMessage.Username, Message = e.ChatMessage.Message, }.GetJson() + Environment.NewLine);
+            await File.AppendAllTextAsync("chatlogs.txt", new TwitchChatLogging() { MsgId = e.ChatMessage.Id, FromChannel = e.ChatMessage.Channel, SenderUsername = e.ChatMessage.Username, Message = e.ChatMessage.Message, }.GetJson() + Environment.NewLine, Encoding.Unicode);
         
         // return if common bots username, commands prefix
         // TODO: make a model from MachineLearning? to predicts it
@@ -159,7 +168,7 @@ public static partial class TwitchManager
 
         var realMessage = e.ChatMessage.Message;
         realMessage = realMessage.Replace("  ", " ").Replace("\t\t", " ");
-        Console.Debug($"[Twitch] ['{e.ChatMessage.Id}'>'{e.ChatMessage.Username}'] realMessage: {realMessage}");
+        Console.Debug($"[Twitch] ['{e.ChatMessage.Channel}'>'{e.ChatMessage.Id}'>'{e.ChatMessage.Username}'] realMessage: {realMessage}");
 
         var args = realMessage.Split(' ').ToArray();
         if (args[0].StartsWith('x'))
@@ -168,14 +177,28 @@ public static partial class TwitchManager
                 Commands.GetCommandHandler(args[0])(realMessage, args, e.ChatMessage);
             return;
         }
-        
-        // remove emotes
+
+        // remove twitch emotes
         foreach (var emote in e.ChatMessage.EmoteSet.Emotes)
             realMessage = realMessage.Replace(emote.Name, "");
+        // remove unicode emotes
+        foreach (var emote in regexEmoji.Matches(realMessage).Cast<Match>())
+            realMessage = realMessage.Replace(emote.Value, "");
         // remove ignored translate
         foreach (var replace in ConfigManager.SystemConfig.IgnoredTranslate)
             realMessage = realMessage.Replace(replace, "");
-        
+        // remove mention(at)
+        if (realMessage.Contains('@'))
+        {
+            foreach (var str in realMessage.Split(' '))
+            {
+                if (str.StartsWith("@"))
+                    realMessage = realMessage.Replace(str, "");
+            }
+        }
+        // check first realMessage are ' ' or not
+        if (realMessage.StartsWith(' '))
+            realMessage = realMessage[1..];
         // Update to reparsed
         realMessage = realMessage.Replace("  ", " ").Replace("\t\t", " ");
         args        = realMessage.Split(' ').ToArray();
@@ -185,9 +208,23 @@ public static partial class TwitchManager
         // Don't Check Self stuff...
         if (e.ChatMessage.Username == twitchRealUsername)
             return;
+
+        // Debug Regex and language predicts
+        Console.Debug($"realMessage: {realMessage.Length}\n" +
+            $"CJK     : {regexCJK     .Matches(realMessage).Select(m => m.Length).Sum()}\n" +
+            $"Japanese: {regexJapanese.Matches(realMessage).Select(m => m.Length).Sum()}\n" +
+            $"Symbol  : {regexSymbols .Matches(realMessage).Select(m => m.Length).Sum()}\n" +
+            $"Language Predicts:\n" +
+            $"NLP  : {CatalystManager.GetLanguageDetection(realMessage)}\n" +
+            $"Lang : {LangDetect.GetLanguageDetection(realMessage)}");
         
-        // or scans first 2 string && first must be translate
-        if (args.Length >= 2 && string.Compare(args[0], "translate", StringComparison.InvariantCultureIgnoreCase) == 0)
+        // if mentions translate
+        if (
+            // scans first 2 string && first must be translate
+            (args.Length >= 2 && string.Compare(args[0], "translate", StringComparison.InvariantCultureIgnoreCase) == 0) ||
+            (args.Length >= 2 && args[0] == "翻译") ||
+            (args.Length >= 2 && args[0] == "翻譯")
+            )
         {
             // and second must be language? TODO: checks lang
             var language    = args[1];
@@ -202,15 +239,28 @@ public static partial class TwitchManager
             var result = await OpenAIManager.Translate(language, toTranslate);
             SendMessage(e.ChatMessage.Channel, result.successful ? $"{e.ChatMessage.Username} says/说: {result.message}" : $"Translate Failed/翻译失败: {result.message}");
         }
-        // or automatically? TODO: Smart Checks, Check Shit Symbols only, or pure Symbols
+        // skippable...
+        else if (
+            // if its symbols and length are same
+            (regexSymbols.Matches(realMessage).Select(m => m.Length).Sum() == realMessage.Length)
+            )
+        { }
+        // automatically? TODO: Smart Checks, Check Shit Symbols only, or pure Symbols
+        /*
         else if (!realMessage.IsEmpty() &&
                  !regexCJK.IsMatch(realMessage) &&
                  !realMessage.IsNumeric() &&
                  //!regexSymbols.IsMatch(realMessage)
                  realMessage[0] != '@' &&
-                 (realMessage.Length > 3 && realMessage[0] == ' ' && realMessage[1] == '@')
+                 (realMessage.Length > 3 && realMessage[0] != ' ' && realMessage[1] != '@')
                  )
-        //else if (false)
+        */
+        else if (
+            // if not contains numberics and not match any CJK Codes (which pretty much translate everything except Chinese/Japanese/Vietnamese/Korean
+            (!realMessage.IsNumeric() && !regexCJK.IsMatch(realMessage)) ||
+            // if contains HanJi(KanJi) and Katagana/Kiragana
+            (regexCJK.IsMatch(realMessage) && regexJapanese.IsMatch(realMessage))
+            )
         {
             var result = await OpenAIManager.Translate("繁体中文", realMessage);
             SendMessage(e.ChatMessage.Channel, result.successful ? $"{e.ChatMessage.Username} says/说: {result.message}" : $"Translate Failed/翻译失败: {result.message}");
@@ -225,7 +275,7 @@ public static partial class TwitchManager
                          $"Categories: {string.Join(", ", result.categories)}\n" +
                          $"Level     : {string.Join(", ", result.scores)}");
 
-            await File.AppendAllTextAsync("dangerous.txt", new Dangerous() { Message = e.ChatMessage.Message, Categories = result.categories.ToList(), Scores = result.scores.ToList(), }.GetJson() + Environment.NewLine);
+            await File.AppendAllTextAsync("dangerous.txt", new Dangerous() { Message = e.ChatMessage.Message, Categories = result.categories.ToList(), Scores = result.scores.ToList(), }.GetJson() + Environment.NewLine, System.Text.Encoding.Unicode);
             //if (result.flag)
                 //ReplyMessage(e.ChatMessage.Channel, e.ChatMessage.Id, "该讯息被ChatGPT标识为有危险成分!");
         }

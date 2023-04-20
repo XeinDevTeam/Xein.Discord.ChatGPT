@@ -20,19 +20,14 @@ public static class OpenAIManager
 
         try
         {
-            var result = await openAI.ChatCompletion.CreateCompletion(new()
-                                                                      {
-                                                                      Messages = new List<ChatMessage> { ChatMessage.FromUser($"翻译成{language}: {toTranslate}"), },
-                                                                      Model    = Models.ChatGpt3_5Turbo,
-                                                                      });
+            var result = await openAI.ChatCompletion.CreateCompletion(new() { Messages = new List<ChatMessage> { ChatMessage.FromUser($"翻译成{language}: {toTranslate}"), }, Model = Models.ChatGpt3_5Turbo, });
 
             var retResult = result.Successful;
             var message   = retResult ? result.Choices.First().Message.Content : $"Error: {result.Error.Code}, {result.Error.Message}";
 
             // logging for training purpose?
             // TODO: implement MachineLearning
-            if (retResult)
-                await File.AppendAllTextAsync("translated.txt", new Translated() { Language = language, ToTranslate = toTranslate, FinalResult = message, }.GetJson() + Environment.NewLine);
+            await File.AppendAllTextAsync("translated.txt", new Translated() { Language = language, ToTranslate = toTranslate, FinalResult = message, }.GetJson() + Environment.NewLine, System.Text.Encoding.Unicode);
 
             Console.Debug($"[Translate] Result: {retResult}, Message: {message}");
             return (retResult, message);

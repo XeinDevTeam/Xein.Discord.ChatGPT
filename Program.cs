@@ -1,21 +1,36 @@
 ﻿using Google.Cloud.TextToSpeech.V1;
 
+using Microsoft.Extensions.Logging;
+
+using Mosaik.Core;
+
 namespace Xein.Discord.ChatGPT;
 
 public partial class Program
 {
+    public static bool IsRequestClosing { get; private set; } = false;
+
     public static void Main(string[] args) => new Program().Async(args).GetAwaiter().GetResult();
 
-    private async Task Async(string[] args)
+    private Task Async(string[] args)
     {
         Console.Log("Hello World");
         Console.Warn($"Current Path: {Directory.GetCurrentDirectory()}");
+
+        System.Console.OutputEncoding = System.Text.Encoding.Unicode;
+
+        ApplicationLogging.SetLoggerFactory(LoggerFactory.Create(lb => lb.AddConsole()));
+        
+        AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
+        System.Console.CancelKeyPress += Console_CancelKeyPress;
 
         Commands.Init();
         ConfigManager.Init();
         OpenAIManager.Init();
         TwitchManager.Init();
-        
+        CatalystManager.Init();
+        LangDetect.Init();
+
         /*
          * [GoogleTTS] cmn-CN-Standard-C (Male); Language codes: cmn-CN
          * [GoogleTTS] cmn-CN-Standard-B (Male); Language codes: cmn-CN
@@ -61,6 +76,8 @@ public partial class Program
         while (true)
         {
             var input = System.Console.ReadLine();
+            if (IsRequestClosing || input.IsEmpty())
+                break;
             if (string.Compare(input, "exit", StringComparison.InvariantCultureIgnoreCase) == 0)
                 break;
 
@@ -71,10 +88,33 @@ public partial class Program
             else
                 Console.Error("Invalid Command Input");
         }
-        
+
+        Shutdown();
+        return Task.CompletedTask;
+    }
+
+    private void Shutdown()
+    {
+        if (IsRequestClosing)
+            return;
+
         TwitchManager.Shutdown();
-        
+
         Console.Warn("Sleeping 3 seconds waiting graceful exits");
         Thread.Sleep(3000);
+
+        Environment.Exit(0);
+    }
+
+    private void CurrentDomain_UnhandledException(object sender, UnhandledExceptionEventArgs e)
+    {
+        Console.Error($"[FATAL ERROR] Unhandled Exception\n{((Exception)e.ExceptionObject).Format()}");
+
+        Shutdown();
+    }
+
+    private void Console_CancelKeyPress(object? sender, ConsoleCancelEventArgs e)
+    {
+        Shutdown();
     }
 }

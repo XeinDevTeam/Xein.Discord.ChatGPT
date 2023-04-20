@@ -66,7 +66,7 @@ public class SystemConfig
     }
 }
 
-internal class TwitchChatLogging
+public class TwitchChatLogging
 {
     public string MsgId          { get; init; }
     public string FromChannel    { get; init; }
@@ -74,14 +74,14 @@ internal class TwitchChatLogging
     public string Message        { get; init; }
 }
 
-internal class Translated
+public class Translated
 {
     public string Language    { get; init; }
     public string ToTranslate { get; init; }
     public string FinalResult { get; init; }
 }
 
-internal class Dangerous
+public class Dangerous
 {
     public string Message { get; init; }
     public List<bool> Categories { get; init; }

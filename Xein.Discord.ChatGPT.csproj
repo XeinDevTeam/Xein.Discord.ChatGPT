@@ -8,8 +8,15 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Betalgo.OpenAI.GPT3" Version="6.8.0" />
+        <PackageReference Include="Betalgo.OpenAI" Version="6.8.5" />
+        <PackageReference Include="Catalyst" Version="1.0.35051" />
+        <PackageReference Include="Catalyst.Models.Chinese" Version="1.0.30952" />
+        <PackageReference Include="Catalyst.Models.English" Version="1.0.30952" />
+        <PackageReference Include="Catalyst.Models.Japanese" Version="1.0.30952" />
         <PackageReference Include="Google.Cloud.TextToSpeech.V1" Version="3.2.0" />
+        <PackageReference Include="LanguageDetection" Version="1.2.0" />
+        <PackageReference Include="Microsoft.Extensions.Logging" Version="7.0.0" />
+        <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="7.0.0" />
         <PackageReference Include="TwitchLib" Version="3.5.3" />
     </ItemGroup>
 
