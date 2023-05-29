@@ -76,7 +76,7 @@ public partial class Program
         while (true)
         {
             var input = System.Console.ReadLine();
-            if (IsRequestClosing || input.IsEmpty())
+            if (IsRequestClosing && input.IsEmpty())
                 break;
             if (string.Compare(input, "exit", StringComparison.InvariantCultureIgnoreCase) == 0)
                 break;

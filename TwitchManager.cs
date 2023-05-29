@@ -145,6 +145,11 @@ public static partial class TwitchManager
     private static partial Regex RegexEmoji();
     private static readonly Regex regexEmoji = RegexEmoji();
 
+    // TODO: Support Kaomoji
+    [GeneratedRegex("[\u2300-\u23FF\u25A0-\u25FF\u0F00-\u0FFF ]+")]
+    private static partial Regex RegexEmoji2();
+    private static readonly Regex regexEmoji2 = RegexEmoji2();
+
     private static async void TwitchClient_OnMessageReceived(object? sender, OnMessageReceivedArgs e)
     {
         Console.Log($"[Twitch] [{e.ChatMessage.UserType} '{e.ChatMessage.Username}'] says in '{e.ChatMessage.Channel}': {e.ChatMessage.Message}");
@@ -209,14 +214,22 @@ public static partial class TwitchManager
         if (e.ChatMessage.Username == twitchRealUsername)
             return;
 
+        var langDetect = (CatalystManager.GetLanguageDetection(realMessage), LangDetect.GetLanguageDetection(realMessage));
+
         // Debug Regex and language predicts
         Console.Debug($"realMessage: {realMessage.Length}\n" +
             $"CJK     : {regexCJK     .Matches(realMessage).Select(m => m.Length).Sum()}\n" +
             $"Japanese: {regexJapanese.Matches(realMessage).Select(m => m.Length).Sum()}\n" +
             $"Symbol  : {regexSymbols .Matches(realMessage).Select(m => m.Length).Sum()}\n" +
+            $"Emoji   : {regexEmoji   .Matches(realMessage).Select(m => m.Length).Sum()}\n" +
             $"Language Predicts:\n" +
             $"NLP  : {CatalystManager.GetLanguageDetection(realMessage)}\n" +
             $"Lang : {LangDetect.GetLanguageDetection(realMessage)}");
+
+        // if both detector unknown, then just set it free...
+        if (langDetect.Item1 == Mosaik.Core.Language.Unknown &&
+            langDetect.Item2.IsEmpty())
+            return;
         
         // if mentions translate
         if (
@@ -241,25 +254,17 @@ public static partial class TwitchManager
         }
         // skippable...
         else if (
-            // if its symbols and length are same
+            // if symbols and length are same
             (regexSymbols.Matches(realMessage).Select(m => m.Length).Sum() == realMessage.Length)
             )
         { }
-        // automatically? TODO: Smart Checks, Check Shit Symbols only, or pure Symbols
-        /*
-        else if (!realMessage.IsEmpty() &&
-                 !regexCJK.IsMatch(realMessage) &&
-                 !realMessage.IsNumeric() &&
-                 //!regexSymbols.IsMatch(realMessage)
-                 realMessage[0] != '@' &&
-                 (realMessage.Length > 3 && realMessage[0] != ' ' && realMessage[1] != '@')
-                 )
-        */
         else if (
-            // if not contains numberics and not match any CJK Codes (which pretty much translate everything except Chinese/Japanese/Vietnamese/Korean
+            // if not numberics and not any CJK Blocks
             (!realMessage.IsNumeric() && !regexCJK.IsMatch(realMessage)) ||
-            // if contains HanJi(KanJi) and Katagana/Kiragana
-            (regexCJK.IsMatch(realMessage) && regexJapanese.IsMatch(realMessage))
+            // if HanJi(KanJi) and Katagana/Kiragana
+            (regexCJK.IsMatch(realMessage) && regexJapanese.IsMatch(realMessage)) ||
+            // if Katagana/Kiragana
+            regexJapanese.IsMatch(realMessage)
             )
         {
             var result = await OpenAIManager.Translate("繁体中文", realMessage);

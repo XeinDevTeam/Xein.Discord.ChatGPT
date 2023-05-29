@@ -219,8 +219,9 @@ public static class Commands
             return;
         }
 
-        ConfigManager.SystemConfig.AddIgnoredTranslate(args[1]);
-        TwitchManager.ReplyMessage(chatMsg.Channel, chatMsg.Id, $"'{args[1]}' will be removed/replace/ignore in next scan | '{args[1]}' 将移除/替换/跳过检测");
+        var toIgnore = input[input.IndexOf(args[1])..];
+        ConfigManager.SystemConfig.AddIgnoredTranslate(toIgnore);
+        TwitchManager.ReplyMessage(chatMsg.Channel, chatMsg.Id, $"'{toIgnore}' will be removed/replace/ignore in next scan | '{toIgnore}' 将移除/替换/跳过检测");
     }
 
     [Command("xunignore")]
@@ -238,7 +239,8 @@ public static class Commands
             return;
         }
 
-        ConfigManager.SystemConfig.RemoveIgnoredTranslate(args[1]);
-        TwitchManager.ReplyMessage(chatMsg.Channel, chatMsg.Id, $"'{args[1]}' will not be removed/replace/ignore in next scan | '{args[1]}' 将不移除/替换/跳过检测");
+        var toIgnore = input[input.IndexOf(args[1])..];
+        ConfigManager.SystemConfig.RemoveIgnoredTranslate(toIgnore);
+        TwitchManager.ReplyMessage(chatMsg.Channel, chatMsg.Id, $"'{toIgnore}' will not be removed/replace/ignore in next scan | '{toIgnore}' 将不移除/替换/跳过检测");
     }
 }
