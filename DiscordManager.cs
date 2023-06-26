@@ -19,6 +19,12 @@ public static class DiscordManager
         await discord.LoginAsync(TokenType.Bot, ConfigManager.Config.DiscordBotToken);
         await discord.StartAsync();
     }
+
+    public static async void Shutdown()
+    {
+        await discord.LogoutAsync();
+        discord.Dispose();
+    }
     
     private static async Task Discord_Ready()
     {
@@ -38,12 +44,21 @@ public static class DiscordManager
                                         .WithType(ApplicationCommandOptionType.SubCommand)
                                         .AddOption("content", ApplicationCommandOptionType.String, "the content"));
         
-        // temporarily register on here only (globally need 1-2hr)
-        // https://discord.com/channels/1081540759620177951/1101680330764734485/1122718947301658685
-        // get first ulong which this part ^
         try
         {
-            await discord.Rest.CreateGuildCommand(commandBuilder.Build(), 1081540759620177951);
+            await discord.Rest.CreateGlobalCommand(commandBuilder.Build());
+        }
+        catch (HttpException e)
+        {
+            Console.Error($"[Discord] command register failed\nCode: {e.HttpCode}, JsonCode: {e.DiscordCode}, Message: {e.Message}");
+            foreach (var error in e.Errors)
+                foreach (var er in error.Errors)
+                    Console.Log($"Code: {er.Code}, Message: {er.Message}");
+        }
+
+        try
+        {
+            await discord.Rest.CreateGlobalCommand(new SlashCommandBuilder().WithName("ping").WithDescription("pong").Build());
         }
         catch (HttpException e)
         {
@@ -83,6 +98,18 @@ public static class DiscordManager
                 else
                     await command.RespondAsync($"Failed to translate {command.User.Mention} messages to {subFunction}, please check backend error");
             }
+        }
+        else if (function is "ping")
+        {
+            // reply pong
+            var embed = new EmbedBuilder()
+                .WithColor(0, 255, 255)
+                .WithTitle("🏓 Pong!")
+                .WithDescription($"MS: {discord.Latency}ms\n"                                +
+                                 $"Time[Execute|Process]: {command.CreatedAt} | {DateTimeOffset.UtcNow}\n" +
+                                 $"Difference: {(command.CreatedAt - DateTimeOffset.UtcNow).TotalMilliseconds}ms")
+                ;
+            await command.RespondAsync(embeds: new List<Embed>() { embed.Build(), }.ToArray());
         }
         else
             await command.RespondAsync($"Unknown Function", ephemeral: true);

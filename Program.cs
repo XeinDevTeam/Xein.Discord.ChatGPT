@@ -100,6 +100,7 @@ public partial class Program
             return;
 
         TwitchManager.Shutdown();
+        DiscordManager.Shutdown();
 
         Console.Warn("Sleeping 3 seconds waiting graceful exits");
         Thread.Sleep(3000);
