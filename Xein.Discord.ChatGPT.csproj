@@ -13,6 +13,7 @@
         <PackageReference Include="Catalyst.Models.Chinese" Version="1.0.30952" />
         <PackageReference Include="Catalyst.Models.English" Version="1.0.30952" />
         <PackageReference Include="Catalyst.Models.Japanese" Version="1.0.30952" />
+        <PackageReference Include="Discord.Net" Version="3.10.0" />
         <PackageReference Include="Google.Cloud.TextToSpeech.V1" Version="3.2.0" />
         <PackageReference Include="LanguageDetection" Version="1.2.0" />
         <PackageReference Include="Microsoft.Extensions.Logging" Version="7.0.0" />

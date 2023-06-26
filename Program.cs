@@ -28,6 +28,7 @@ public partial class Program
         ConfigManager.Init();
         OpenAIManager.Init();
         TwitchManager.Init();
+        DiscordManager.Init();
         CatalystManager.Init();
         LangDetect.Init();
 

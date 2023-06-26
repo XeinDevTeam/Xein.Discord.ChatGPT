@@ -45,7 +45,7 @@ public static class Extension
 
     public static bool IsAbleToUse(this ChatMessage chatMsg) => chatMsg.IsModerator || chatMsg.IsBroadcaster || string.Compare(chatMsg.Username, "xein0708", StringComparison.InvariantCultureIgnoreCase) == 0;
     
-    public static string Format(this Exception e) => $"Exception: {e} (Inner: {e.InnerException})\n{e.Message}\nStacktrace:\n{e.StackTrace}";
+    public static string Format(this Exception e) => $"Exception: {e}\n{e.Message}\nStacktrace:\n{e.StackTrace}";
 
     public static string GetFormat(this DateTime time) => $"[{time.ToShortDateString()} {time.ToShortTimeString()}]";
 

@@ -49,8 +49,6 @@ public static partial class TwitchManager
                     {
                         case "001":
                             twitchRealUsername = args[2];
-                            JoinChannel(twitchRealUsername);
-                            SendMessage(twitchRealUsername, "Hi, I'm Online Now");
                             break;
                     }
                 }
@@ -83,8 +81,8 @@ public static partial class TwitchManager
         twitchClient?.Disconnect();
     }
 
-    public static void JoinChannel (string channelName)                               => twitchClient.JoinChannel (channelName, true);
-    public static void LeaveChannel(string channelName)                               => twitchClient.LeaveChannel(channelName);
+    public static void JoinChannel (string channelName) => twitchClient.JoinChannel (channelName, true);
+    public static void LeaveChannel(string channelName) => twitchClient.LeaveChannel(channelName);
     
     private static DateTime lastResetTime = DateTime.Now;
     private static int      lastSentCount;
@@ -97,7 +95,7 @@ public static partial class TwitchManager
             lastResetTime = DateTime.Now;
             lastSentCount = 0;
         }
-        Console.Debug($"[SELFRATELIMIT] remaining: {15 - lastSentCount} | next reset: {(30 - (DateTime.Now - lastResetTime).TotalSeconds)}");
+        Console.Debug($"[SELFRATELIMIT] remaining: {15 - lastSentCount} | next reset: {30 - (DateTime.Now - lastResetTime).TotalSeconds}");
         return true;
     }
     

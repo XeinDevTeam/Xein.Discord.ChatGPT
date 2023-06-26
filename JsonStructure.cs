@@ -2,10 +2,11 @@ namespace Xein.Discord.ChatGPT;
 
 public class Config
 {
-    public string ChatGPTApiKey            { get; init; } = "Enter Your API Key From https://platform.openai.com/account/api-keys";
-    public string TwitchUsername           { get; init; } = "Enter Your Twitch Username";
-    public string TwitchOAuthToken         { get; init; } = "Enter Your OAuth Token From https://twitchapps.com/tmi/";
-    public string GoogleServiceAccountPath { get; init; } = "yourKeyFile.json";
+    public string ChatGPTApiKey            { get; set; } = "REPLACE_TO_YOUR_OPENAI_API_KEY_https://platform.openai.com/account/api-keys";
+    public string TwitchUsername           { get; set; } = "REPLACE_TO_YOUR_TWITCH_USERNAME";
+    public string TwitchOAuthToken         { get; set; } = "REPLACE_TO_YOUR_TWITCH_OAUTH_TOKEN_https://twitchapps.com/tmi/";
+    public string GoogleServiceAccountPath { get; set; } = "yourKeyFile.json";
+    public string DiscordBotToken          { get; set; } = "REPLACE_TO_YOUR_DISCORD_BOT_TOKEN";
 }
 
 public class SystemConfig
