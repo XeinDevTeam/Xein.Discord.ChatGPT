@@ -1,6 +1,6 @@
-using OpenAI.GPT3.Managers;
-using OpenAI.GPT3.ObjectModels;
-using OpenAI.GPT3.ObjectModels.RequestModels;
+using OpenAI.Managers;
+using OpenAI.ObjectModels;
+using OpenAI.ObjectModels.RequestModels;
 
 namespace Xein.Discord.ChatGPT;
 
@@ -30,7 +30,12 @@ public static class OpenAIManager
             await File.AppendAllTextAsync("translated.txt", new Translated() { Language = language, ToTranslate = toTranslate, FinalResult = message, }.GetJson() + Environment.NewLine, System.Text.Encoding.Unicode);
 
             Console.Debug($"[Translate] Result: {retResult}, Message: {message}");
-            return (retResult, message);
+            
+            // Check more failed cases
+            if (message.Contains("help.openai.com"))
+                return (false, "翻译出现错误, OpenAI伺服器太多请求或者有其他问题发生");
+            else
+                return (retResult, message);
         }
         catch (Exception ex)
         {

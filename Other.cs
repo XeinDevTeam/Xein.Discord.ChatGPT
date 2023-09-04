@@ -1,4 +1,4 @@
-using OpenAI.GPT3.ObjectModels.ResponseModels;
+using OpenAI.ObjectModels.ResponseModels;
 
 using System.Text.Encodings.Web;
 using System.Text.Json;

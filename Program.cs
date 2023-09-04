@@ -28,7 +28,7 @@ public partial class Program
         ConfigManager.Init();
         OpenAIManager.Init();
         TwitchManager.Init();
-        DiscordManager.Init();
+        //DiscordManager.Init();
         CatalystManager.Init();
         LangDetect.Init();
 
@@ -100,7 +100,7 @@ public partial class Program
             return;
 
         TwitchManager.Shutdown();
-        DiscordManager.Shutdown();
+        //DiscordManager.Shutdown();
 
         Console.Warn("Sleeping 3 seconds waiting graceful exits");
         Thread.Sleep(3000);
@@ -111,7 +111,6 @@ public partial class Program
     private void CurrentDomain_UnhandledException(object sender, UnhandledExceptionEventArgs e)
     {
         Console.Error($"[FATAL ERROR] Unhandled Exception\n{((Exception)e.ExceptionObject).Format()}");
-
         Shutdown();
     }
 

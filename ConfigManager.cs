@@ -22,8 +22,7 @@ public static class ConfigManager
             File.WriteAllText("SystemConfig.json", new SystemConfig() { Username = new() { "nightbot", "streamelements" }, }.GetJson(true));
         SystemConfig = "SystemConfig.json".FromJson<SystemConfig>(true);
 
-        if (!File.Exists("chatlogs.txt"))
-            return;
+        return;
 
         foreach (var line in File.ReadAllLines("chatlogs.txt"))
             ChatLogs.Add(line.FromJson<TwitchChatLogging>());
