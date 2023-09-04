@@ -158,7 +158,6 @@ public static partial class TwitchManager
         if (!ConfigManager.SystemConfig.IsUserOptOut(e.ChatMessage.Username))
             await File.AppendAllTextAsync("chatlogs.txt", new TwitchChatLogging() { MsgId = e.ChatMessage.Id, FromChannel = e.ChatMessage.Channel, SenderUsername = e.ChatMessage.Username, Message = e.ChatMessage.Message, }.GetJson() + Environment.NewLine, Encoding.Unicode);
         
-        // return if common bots username, commands prefix
         // TODO: make a model from MachineLearning? to predicts it
         if (e.ChatMessage.Username == "nightbot" ||
             e.ChatMessage.Username == "streamelements" ||
@@ -167,6 +166,7 @@ public static partial class TwitchManager
             e.ChatMessage.Message.Contains("www", StringComparison.InvariantCultureIgnoreCase) ||
             e.ChatMessage.Message.Contains("http", StringComparison.InvariantCultureIgnoreCase) ||
             e.ChatMessage.Message.Contains(".com", StringComparison.InvariantCultureIgnoreCase) ||
+            e.ChatMessage.Bits >= 1 || // its bad, but don't translate it...
             ConfigManager.SystemConfig.IsBannedUsername(e.ChatMessage.Username))
             return;
 
@@ -206,13 +206,6 @@ public static partial class TwitchManager
         
         // Update to reparsed
         realMessage = realMessage.Replace("  ", " ").Replace("\t\t", " ");
-        // Check bits
-        if (e.ChatMessage.Bits >= 1)
-        {
-            var splits  = realMessage.Split(' ');
-            var newList = splits.Where(part => !part.Contains("Cheer", StringComparison.InvariantCultureIgnoreCase) && !char.IsDigit(part[part.Length])).ToList();
-            realMessage = string.Join(' ', newList);
-        }
         // parse to args
         args = realMessage.Split(' ').ToArray();
         if (realMessage.IsEmpty()) return;
