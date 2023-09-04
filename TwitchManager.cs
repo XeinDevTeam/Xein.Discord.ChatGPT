@@ -6,6 +6,8 @@ using TwitchLib.Client.Events;
 using TwitchLib.Client.Models;
 using TwitchLib.Communication.Events;
 
+// ReSharper disable All
+
 namespace Xein.Discord.ChatGPT;
 
 public static partial class TwitchManager
@@ -44,14 +46,13 @@ public static partial class TwitchManager
         switch (args[0])
         {
             case ":tmi.twitch.tv":
+            {
+                twitchRealUsername = args[1] switch
                 {
-                    switch (args[1])
-                    {
-                        case "001":
-                            twitchRealUsername = args[2];
-                            break;
-                    }
-                }
+                    "001" => args[2],
+                    _ => twitchRealUsername
+                };
+            }
                 break;
         }
     }
@@ -63,7 +64,7 @@ public static partial class TwitchManager
 
     private static void TwitchClient_OnMessageThrottled(object? sender, OnMessageThrottledEventArgs e)
     {
-        Console.Error($"[Twitch] Throttled: {e.Message}\nPeroid: {e.Period} | Allowed In Peroid: {e.AllowedInPeriod}\nSent Cound:{e.SentMessageCount}");
+        Console.Error($"[Twitch] Throttled: {e.Message}\nPeriod: {e.Period} | Allowed In Period: {e.AllowedInPeriod}\nSent Count:{e.SentMessageCount}");
     }
 
     private static void TwitchClient_OnError(object? sender, OnErrorEventArgs e)
@@ -90,7 +91,7 @@ public static partial class TwitchManager
     {
         if ((DateTime.Now - lastResetTime).TotalSeconds < 30 && lastSentCount > 15)
             return false;
-        else if ((DateTime.Now - lastResetTime).TotalSeconds > 30.0f)
+        if ((DateTime.Now - lastResetTime).TotalSeconds > 30.0f)
         {
             lastResetTime = DateTime.Now;
             lastSentCount = 0;
@@ -202,18 +203,24 @@ public static partial class TwitchManager
         // check first realMessage are ' ' or not
         if (realMessage.StartsWith(' '))
             realMessage = realMessage[1..];
+        
         // Update to reparsed
         realMessage = realMessage.Replace("  ", " ").Replace("\t\t", " ");
-        args        = realMessage.Split(' ').ToArray();
-        if (realMessage.IsEmpty())
-            return;
+        // Check bits
+        if (e.ChatMessage.Bits >= 1)
+        {
+            var splits  = realMessage.Split(' ');
+            var newList = splits.Where(part => !part.Contains("Cheer", StringComparison.InvariantCultureIgnoreCase) && !char.IsDigit(part[part.Length])).ToList();
+            realMessage = string.Join(' ', newList);
+        }
+        // parse to args
+        args = realMessage.Split(' ').ToArray();
+        if (realMessage.IsEmpty()) return;
 
         // Don't Check Self stuff...
-        if (e.ChatMessage.Username == twitchRealUsername)
-            return;
+        if (e.ChatMessage.Username == twitchRealUsername) return;
 
         var langDetect = (CatalystManager.GetLanguageDetection(realMessage), LangDetect.GetLanguageDetection(realMessage));
-
         // Debug Regex and language predicts
         Console.Debug($"realMessage: {realMessage.Length}\n" +
             $"CJK     : {regexCJK     .Matches(realMessage).Select(m => m.Length).Sum()}\n" +
@@ -266,7 +273,8 @@ public static partial class TwitchManager
             )
         {
             var result = await OpenAIManager.Translate("繁体中文", realMessage);
-            SendMessage(e.ChatMessage.Channel, result.successful ? $"{e.ChatMessage.Username} says/说: {result.message}" : $"Translate Failed/翻译失败: {result.message}");
+            if (!result.successful) Console.Error($"[TRANSLATE] Failed({realMessage}): {result.message}");
+            SendMessage(e.ChatMessage.Channel, result.successful ? $"{e.ChatMessage.Username} says/说: {result.message}" : $"Translate Failed/翻译失败");
         }
 
         try
